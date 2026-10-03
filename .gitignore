@@ -1,0 +1,22 @@
+# 构建产物
+build/
+.hvigor/
+.cxx/
+oh_modules/
+node_modules/
+
+# 模型与大数据产物（本仓库不分发模型；判据脚本运行产物可本地生成）
+*.ms
+*.onnx
+*.bin
+out/
+tools/**/out/
+
+# 便携 Python 环境（如使用）
+.pyenv/
+__pycache__/
+*.pyc
+
+# 系统文件
+.DS_Store
+Thumbs.db

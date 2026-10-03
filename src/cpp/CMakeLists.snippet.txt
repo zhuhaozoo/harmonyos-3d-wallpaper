@@ -1,0 +1,23 @@
+# 将以下内容并入你的 CMakeLists.txt（以 native 库模块 glassrender 为例）
+
+target_sources(glassrender PRIVATE
+    src/cpp/spatial_recon_bridge.cpp
+    src/cpp/spatial_recon_layers.cpp
+    src/cpp/spatial_recon_depth_mesh.cpp
+    src/cpp/mslite_depth_runner.cpp
+)
+# 头文件目录：include_directories(src/cpp)
+
+target_link_libraries(glassrender PUBLIC
+    libhilog_ndk.z.so            # 日志
+    libmindspore_lite_ndk.so     # 端侧推理（系统内置部件）
+    librawfile.z.so              # 读取随包 .ms 模型
+)
+
+# ⚠️ 关键约束：
+# 1) Spatial Recon 能力库（libspatial_recon_ndk.z.so）**不得**写入 target_link_libraries——
+#    不支持该特性的设备会在加载本库时因 DT_NEEDED 直接失败（启动即崩）。
+#    本项目在 spatial_recon_bridge.cpp 中运行期 dlopen + dlsym 绑定。
+# 2) dlopen/dlsym 在 OHOS 上由 libc 提供，无需额外链接。
+# 3) vg_common.h 为本仓库提供的最小日志头（仅日志宏，供独立编译）；
+#    如你的工程已有日志工具，可替换该 include。
