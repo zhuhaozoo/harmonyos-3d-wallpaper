@@ -66,12 +66,10 @@ struct SpatialReconTestParams {
                                  *   逐帧用 bridge 单源投影光栅化；轨道口径由判据界定（±kDepthThetaDeg，stepNear≈66px）；
                                 *   深度缺失/构建失败自动退回 1；设计见 docs/3d-wallpaper-route-b-implementation.md。 */
     bool rgbaInput = false;    /**< A/B：按 4 字节/像素（RGBA，Alpha=255）上报，默认 RGB 3 字节 */
-    bool bgrSwap = true;       /**< **默认开**（坑 132）：推帧前交换 R/B——Kit 的通道错位在
-                                *   **输出/渲染侧**（读入是忠实 RGB），不交换则成片红蓝对调。
-                                *   ⚠️ 坑 134（2026-10-02 A/B 定案）：交换后高度饱和素材（动漫图）
-                                *   会让 learned 匹配器崩塌（STAGE02 no 3D points），muted 素材不受
-                                *   影响；Service 层失败时自动反交换重试一次；bgrSwap=false 可
-                                *   手动回到直通 RGB。 */
+    bool bgrSwap = true;       /**< **默认开**（坑 132）：推帧前交换 R/B。该开关会改变成片的颜色
+                                *   表现，但成因**尚无定论**（坑 134 的"A/B 定案"已撤销，见档案 F7）；
+                                *   默认值与 Service 层的"失败自动反交换重试"属工程折中，
+                                *   不代表结论；bgrSwap=false 可手动回到直通 RGB。 */
     std::vector<uint8_t> mask; /**< 主体蒙版（scene=3 用；srcW*srcH，0=背景 255=主体，中间为概率；缺失/尺寸不符自动退回 scene=1） */
     float subjectDepth = 0.90f; /**< 主体平面深度 / 主盒正面深度（<1 = 主体更近；钳 0.60~0.95）。
                                  *   取值受"可匹配位移量级"约束：背景层一段 ±8° 轨道位移 ≈145px（已验证可匹配），

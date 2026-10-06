@@ -1144,13 +1144,10 @@ int32_t SpatialReconTestRun(const SpatialReconTestParams &params, std::string &o
                 ? SrRasterizeDepthMesh(depthCtx, pos, basis, fx, fy, cx, cy, rgb)
                 : SrRenderFrame(params.rgba.data(), params.srcW, params.srcH,
                                 pos, basis, fx, fy, cx, cy, scene, layers, rgb);
-            // 坑 132（2026-10-02 真机定案）：Kit 的通道错位在**输出/渲染侧**（PushFrame 读入是
-            // 忠实 RGB）——推 RGB 则成片红蓝对调（橙色路灯 ↔ 青蓝、蓝色招牌 ↔ 橙红，用户报告
-            // "蓝黄对掉"）。在推帧口统一交换 R/B 使输出颜色正确；ASCII 缩略图用亮度加权不受影响，
-            // 内部管线（贴图/深度/补洞）不换。
-            // ⚠️ 坑 134（2026-10-02 A/B 定案）：交换后高度饱和素材（动漫图）会让 learned 匹配器
-            // 崩塌（muted 素材不受影响）——Service 层失败时自动反交换重试一次；bgrSwap=false 可
-            // 手动回到直通 RGB。
+            // 坑 132：在推帧口可选交换 R/B（默认开）——开发期观察到该开关会改变成片的颜色表现，
+            // 但成因**尚无定论**（坑 134 的"A/B 定案"已撤销，见档案 F7）。此处只提供开关；
+            // Service 层失败时会自动反交换重试一次，bgrSwap=false 可手动回到直通 RGB。
+            // 只换推帧缓冲：ASCII 缩略图用亮度加权不受影响，内部管线（贴图/深度/补洞）不换。
             if (params.bgrSwap) {
                 for (size_t p = 0; p + 2 < rgb.size(); p += 3) {
                     const uint8_t tmpR = rgb[p];

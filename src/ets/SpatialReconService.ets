@@ -48,9 +48,9 @@ export interface SpatialReconAdaptOptions {
   invertQuat?: boolean;
   /** 诊断 A/B：画面绕视轴滚 180°（图像+位姿同步滚，几何不变）——默认关（实测无效，保留作对照） */
   roll180?: boolean;
-  /** **默认 true**（坑 132）：推帧前交换 R/B（Kit 的通道错位在输出/渲染侧，不交换则成片
-   *  红蓝对调）。⚠️ 坑 134（A/B 定案）：交换后高度饱和素材（动漫图）会让 learned 匹配器
-   *  崩塌（muted 素材不受影响）——生成失败时自动反交换重试一次；传 false 也可手动直通 RGB */
+  /** **默认 true**（坑 132）：推帧前交换 R/B。该开关会改变成片的颜色表现，但成因**尚无定论**
+   *  （坑 134 的"A/B 定案"已撤销，见档案 F7）——默认值与"失败自动反交换重试"属工程折中；
+   *  传 false 可手动直通 RGB */
   bgrSwap?: boolean;
   /** **默认 true**：世界绕世界 X 轴转 180°（只转上报位姿、合成帧不变；模型整体旋转、重建等价）
    *  ——抵消 Kit 模型导出/输出环节的 180° 翻转（成片上下颠倒 + 人物跑到背景后面）；
@@ -84,7 +84,8 @@ export interface SpatialReconAdaptOptions {
 interface SpatialReconAttempt {
   /** 合成场景（固定 5 = 深度网格） */
   sc: number;
-  /** 推帧是否交换 R/B：首轮 = 用户/默认（开）；失败重试轮 = 反交换 */
+  /** 推帧是否交换 R/B：首轮 = 用户/默认（开）；失败重试轮 = 反交换。
+   *  成因未定论（见档案 F7），此处仅为工程上的试错序列 */
   swap: boolean;
 }
 
@@ -451,15 +452,10 @@ export class SpatialReconService {
       const buf: ArrayBuffer = new ArrayBuffer(pixelMap.getPixelBytesNumber());
       await pixelMap.readPixelsToBuffer(buf);
 
-      // 坑 134 输入端预判（2026-10-02 加探针，2026-10-03 三点标定后接入决策）：
-      // R/B 交换敏感度 = 逐像素 |R−B|/max(R,G,B) 均值（近黑跳过，1/4 采样）。
-      // 标定点：0.207 夜景=交换后重建成功且颜色正确；0.334 动漫=交换后匹配崩塌
-      // （快速失败→自动反交换重试兜住，代价 ~4s + 颜色对调）；**0.617 动漫(大幅蓝天)=
-      // 交换后"重建成功"但模型垃圾（初始视角全灰/模糊混乱）且阻断了重试**——最恶劣区。
-      // 规则：swapRisk > 0.5 直接跳过交换档（单次自然 RGB：颜色对调但重建干净）；
-      // 0.5 以下维持"交换优先 + 失败反交换重试"（保住普通照片的正确颜色）。
-      // 阈值可随标定数据积累调整；橙霞/水下蓝调等高敏感照片若被误跳过，损失的是
-      // 颜色正确性（可接受，颜色本就有 GLTF 改色后手）。
+      // 输入端预判（坑 134 的成因判断已撤销，见档案 F7）：以 |R−B| 均值作为素材"色彩饱和
+      // 程度"的粗略度量，仅用于挑选本轮的试错序列——高饱和素材在交换档上曾出现"重建成功但
+      // 模型不可用"（该状态会阻断重试），故风险高时直接走自然 RGB 单档。
+      // ⚠️ 阈值 0.5 来自少量样本的工程标定，不是结论；可随数据积累调整。
       let swapRisk: number = 0;
       {
         const u8: Uint8Array = new Uint8Array(buf);
@@ -478,7 +474,7 @@ export class SpatialReconService {
         }
         swapRisk = cnt > 0 ? sum / cnt : 0;
         console.info(`SR3D precheck swapRisk=${swapRisk.toFixed(3)} px=${cnt} ` +
-          `skipSwap=${swapRisk > 0.5 ? 1 : 0}（坑 134：>0.5 跳过交换档，防"垃圾成功"阻断重试）`);
+          `skipSwap=${swapRisk > 0.5 ? 1 : 0}（>0.5 跳过交换档：防"成功但模型不可用"阻断重试）`);
       }
 
       // 路线B 深度网格（scene=5）：先跑端侧深度估计（复用阶段1 已验证的推理链路），再把 .bin 回读为参数。
@@ -534,12 +530,11 @@ export class SpatialReconService {
         console.info(`SR3D cleanup removed ${removed} legacy entries`);
       }
 
-      // 尝试序列（2026-10-02 坑 134 定案 → 2026-10-03 加预判跳档）：
-      //   常规：scene=5 主推，通道交换按用户/默认值（默认开 = Kit 输出侧字节序按 BGR 走，
-      //   颜色才正确）；失败自动反交换重试一次（muted 素材交换可匹配，高饱和素材崩塌）。
-      //   高危（swapRisk > 0.5，预判）：**直接跳过交换档**——此区间交换会"重建成功"但
-      //   模型垃圾（全灰/模糊）且成功态阻断重试（真机 0.617 动漫实锤），比失败更恶劣；
-      //   单次自然 RGB 生成，颜色对调（状态行提示），重建干净。
+      // 尝试序列（工程上的试错序列；成因未定论，见档案 F7）：
+      //   常规：scene=5 主推，通道顺序按用户/默认值；失败自动反交换重试一次。
+      //   高 |R−B| 素材（预判）：直接跳过交换档——该档曾出现"重建成功但模型不可用"且成功态
+      //   会阻断重试（比失败更不利）；改为单次自然 RGB 生成，重建结果更干净（颜色可能对调，
+      //   状态行会提示）。
       const userSwap: boolean = adapt?.bgrSwap !== false;
       const skipSwap: boolean = userSwap && swapRisk > 0.5;
       const candidates: SpatialReconAttempt[] = skipSwap
