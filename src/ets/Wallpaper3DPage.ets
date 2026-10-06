@@ -594,7 +594,7 @@ export struct Wallpaper3DPage {
    * 路线B 阶段1 自检：对当前选中照片跑端侧深度估计。
    * 产物：`<filesDir>/depth_selftest/depth_<ts>.depth.f32.bin`（原始相对逆深度，越大越近）
    *      + `.meta.txt`；状态行显示 native 统计串（含尺寸/layout/min/max/mean/耗时）。
-   * 与 PC 端比对：把 bin 取回后用 tools/depth_mesh 的判据工具/比对脚本核对（见实现文档 §9 阶段1）。
+   * 与离线判据比对：把 bin 取回后用 tools/depth_mesh 的判据脚本核对。
    */
   private async runDepthSelfTest(): Promise<void> {
     if (this.pickedUri.length === 0) {

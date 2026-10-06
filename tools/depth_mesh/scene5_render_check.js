@@ -35,7 +35,7 @@ const P_LOG = args.log || '';
 const N_FRAMES = parseInt(args.n || '72', 10);
 const THETA_DEG = parseFloat(args.theta || '5');
 
-// ---------- 常量（与实现文档 §附录B / spatial_recon_bridge.cpp 对齐） ----------
+// ---------- 常量（与 src/cpp/spatial_recon_bridge.cpp 对齐） ----------
 const OUT_W = 1080, OUT_H = 1440;
 const CX = OUT_W / 2, CY = OUT_H / 2;
 const FX = 1500, FY = 1500;
@@ -516,7 +516,7 @@ if (P_LOG) {
       cmpCpp.map.forEach((l, r) => console.log(`    r${String(r).padStart(2, '0')} ${l}`));
     }
   }
-  // [D] 设备内部双检（不依赖离线模型）：§9 验收两条硬判据的直接读法
+  // [D] 设备内部双检（不依赖离线模型）：两条硬判据的直接读法
   //   ① 参考位姿恒等：`fmid`（θ≈0）≈ `src`（源照片，按画布口径逐格取点）
   //   ② 视差存在：`f000`（θ=−Θ）≠ `fmid`
   const devSrc = logAscii(P_LOG, 'src');

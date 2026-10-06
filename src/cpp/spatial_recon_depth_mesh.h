@@ -1,8 +1,8 @@
 /**
  * 3D壁纸 · 路线B 阶段2：深度网格场景的**纯 2D 单元**（与相机无关）
  *
- * 设计文档：docs/3d-wallpaper-route-b-implementation.md §3.3/§3.6/§4
- * 划分依据（《新增功能开发指南》第一节判定）：
+ * 常量与口径：与离线判据 `tools/depth_mesh/depth_mesh_check.js` 一致（判据含源码级守卫）。
+ * 划分依据：
  *   - 共享相机/射线/位姿/内参 → **不许拆**：投影与射线公式留在 spatial_recon_bridge.cpp（唯一来源）；
  *   - 与相机无关的纯 2D 算法 → **必须拆**：本单元只做"深度场 → 图像空间四边形 + 贴图"与
  *     "已投影好的屏幕顶点 → 光栅化"，**不出现任何射线/位姿/内参推导**（判据 [7] 同步守卫）。
@@ -61,7 +61,7 @@ struct SrDepthMesh {
  * @param rawDepth dw*dh float（模型原始输出；内部做 p1/p99 稳健归一化；s=1 最近）
  * @param rgba     源帧 rw*rh*4（行跨距须为 rw*4 紧凑缓冲；与深度网格**分辨率可不同**，
  *                 构建时按比例双线性重采样到 outW×outH —— 端侧深度是 546×728、源图可能是 809×1440）
- * @param zNear/zFar 深度映射参数（由 bridge 传入，常量在 bridge，见文档 §附录B）
+ * @param zNear/zFar 深度映射参数（由 bridge 传入，常量在 bridge）
  * @param stride   网格抽稀步长（**深度场像素**，默认 4）——深度场比画布小，步长也随之按场分辨率取
  * @param skirt    照片网格向画幅外的延展（**画布像素**，默认 80；承接轨道端点的边缘空隙）
  * @param outW/outH 输出画布尺寸（1080×1440；网格角点与贴图都映射到该空间——纯 2D 约定）

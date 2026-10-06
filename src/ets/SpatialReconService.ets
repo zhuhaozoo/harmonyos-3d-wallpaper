@@ -64,7 +64,7 @@ export interface SpatialReconAdaptOptions {
   /** true=按 RGBA（4 字节/像素）上报；默认 RGB（3 字节/像素） */
   rgbaInput?: boolean;
   /** 主体层深度比（scene=3 用）：主体平面深度 / 背景深度，<1 = 主体更近（默认 0.90，钳 0.60~0.95）。
-   *  ⚠️ 取值受"可匹配位移量级"约束：越小主体层位移越大（真机 0.80 曾致稠密初始化失败，见文档 §4.6） */
+   *  ⚠️ 取值受"可匹配位移量级"约束：越小主体层位移越大（真机 0.80 曾致稠密初始化失败） */
   subjectDepth?: number;
   /** 虚拟相机焦距 px（默认 750，钳 200~6000）。⚠️ 2026-10-02 坑 131 定案：曾据此认为
    *  "Kit 渲染相机对输入焦距预期 ≈750、横向变形系数 a=750/fx"——已被三组同图 A/B 证伪
@@ -94,7 +94,7 @@ export class SpatialReconService {
   private static readonly MAX_DECODE_SIDE: number = 1440;
   /** 主体分割的默认层深度比（与 native 侧默认值一致，勿单边改）。
    *  0.90 = 主体层位移 ≈251px（±8° 轨道），落在"背景层 ≈145px 已验证可匹配"的邻近区间；
-   *  更小的值（更强视差）位移量级会超出已验证的可匹配范围，真机稠密初始化会失败（见文档 §4.6）。 */
+   *  更小的值（更强视差）位移量级会超出已验证的可匹配范围，真机稠密初始化会失败。 */
   private static readonly DEFAULT_SUBJECT_DEPTH: number = 0.90;
   /** 主体占比下限：低于此值视为"未识别到主体"（与 native 侧 SrBuildLayerAssets 的判据一致） */
   private static readonly MIN_SUBJECT_RATIO: number = 0.005;
@@ -189,7 +189,7 @@ export class SpatialReconService {
    * @returns null = 未识别到主体（初始化失败/结果缺失/尺寸不符/主体占比过小）——
    *          调用方按单层立体场景生成，不阻断流程。
    */
-  /** 居中裁剪到 3:4（原地）。Kit 只认 1080×1440；非 3:4 照片按实现文档 §3.5 先裁剪，
+  /** 居中裁剪到 3:4（原地）。Kit 只认 1080×1440；非 3:4 照片先裁剪，
    *  保证"深度估计输入 == 贴图"是同一张（1:1 对齐）。主体引导裁剪留待后续（现为居中裁剪）。 */
   private static async cropTo3to4(pm: image.PixelMap): Promise<void> {
     const info: image.ImageInfo = pm.getImageInfoSync();
@@ -623,7 +623,7 @@ export class SpatialReconService {
   /**
    * 路线B 阶段1 自检：对一张照片跑**端侧深度估计**（MindSpore Lite + Depth Anything V2 Small .ms）。
    * 产物：`<filesDir>/depth_selftest/depth_<ts>.depth.f32.bin`（原始相对逆深度 float32，越大越近）
-   *      + 同名 `.meta.txt`（统计）；返回 native 统计串，供与 PC 端 ref_depth.py 的结果比对。
+   *      + 同名 `.meta.txt`（统计）；返回 native 统计串，供与离线判据结果比对。
    * 失败抛错（运行时不可用 / 模型不可用 / 推理失败），message 带诊断串。
    */
   static async depthSelfTest(ctx: common.UIAbilityContext, uri: string): Promise<string> {

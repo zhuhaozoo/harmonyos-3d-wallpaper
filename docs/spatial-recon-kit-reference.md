@@ -180,7 +180,7 @@
 | 帧尺寸 | 1080×1440 RGB 紧凑（行跨距 = 1080×3，native 断言） | Kit 硬约束 |
 | 内参 | fx=fy=**750**、cx=540、cy=720、畸变 0 | 750 = 宽度压缩修复值；改动会同时影响模型形状与视差量级 |
 | 位姿 | 世界→相机四元数 [x,y,z,w]；`worldFlip180` 默认开（补偿 Kit 模型 180° 翻转） | 均为【实测】命中配置 |
-| 帧序/时间戳 | 72 帧、30fps 等间隔 ns、θ 从 −5° 到 +5°（含 θ=0） | Θ/k/zNear 见实现文档附录 B |
+| 帧序/时间戳 | 72 帧、30fps 等间隔 ns、θ 从 −5° 到 +5°（含 θ=0） | 与产品档位常量一致（Θ=±5°、k=3、zNear=1） |
 | 保存 | `writeInfo.modelFormat=MP4`、`modelFile` 沙箱路径 | writeInfo 非空 ⇒ 自动保存 |
 | 会话 | 每次生成全新空目录（el2/base 下 `/sr_<ts>/`） | 防 resume 模式 |
 | 未用的可用工具 | `GetRefinedFrame`（对账位姿）、`SaveResultToFile`（手动保存）、PLY 输出、spatialEdit 提取主体 | 见 §3/§4 |

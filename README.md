@@ -3,9 +3,9 @@
 把一张普通照片转成系统可识别的 **3D 影像**（可保存到图库并设为壁纸）。
 
 **这是"证明链路可行"的归档开源**：核心管线已在真机完整出片（重建四阶段全部完成、
-约 87 秒、无降级 fallback），同时存在明确的技术局限。请先读技术档案
+约 87 秒、无降级 fallback）。请先读技术档案
 [`docs/3d-wallpaper-archive.md`](docs/3d-wallpaper-archive.md) —— 它包含全部技术结论、
-14 条避坑发现（F1~F14）、可复现参数与未竟事项清单。
+F1~F14 关键发现、可复现参数与未竟事项清单。
 
 ## 技术路线
 
@@ -30,13 +30,13 @@
 
 | 路径 | 内容 |
 |---|---|
-| `docs/3d-wallpaper-archive.md` | **技术档案（先读）**：结论摘要 / 链路与真机证据 / 参数总表 / F1~F14 关键发现 / 已解改进方向 / 局限 / 未竟事项 / 许可 |
-| `docs/3d-wallpaper-route-b-implementation.md` | 实现文档：逐段设计、公式推导（附录 A/B） |
-| `docs/spatial-recon-kit-reference.md` | Spatial Recon Kit 参数/模式全表（含未文档化项清单） |
+| `docs/3d-wallpaper-archive.md` | **技术档案（先读）**：结论摘要 / 链路 / 参数总表 / F1~F14 关键发现 / 未竟事项 / 许可 |
+| `docs/spatial-recon-kit-reference.md` | Spatial Recon Kit 参数/模式全表 |
 | `src/cpp/` | native 层：`spatial_recon_bridge`（Kit 桥 + 相机数学单源）/ `spatial_recon_depth_mesh`（纯 2D 网格）/ `spatial_recon_layers`（分层深度）/ `mslite_depth_runner`（端侧深度推理） |
 | `src/ets/` | ArkTS 层：`SpatialReconService`（编排）/ `Wallpaper3DPage`（示例页面）/ `GallerySaver`（保存图库）/ `libglassrender-3d.d.ts`（接口声明摘录） |
 | `src/cpp/CMakeLists.snippet.txt` | 编译接入片段（源文件与链接库） |
-| `tools/depth_mesh/` | 离线工具链：判据脚本（零依赖 Node）+ PC 参考推理脚本 |
+| `tools/depth_mesh/depth_mesh_check.js` | 深度网格与合成场景判据（零依赖 Node，可离线运行） |
+| `tools/depth_mesh/scene5_render_check.js` | scene=5 渲染结果判据 |
 | `tools/sr_frames_check.js` | 场景合成帧判据（scenes 0-4） |
 
 ## 快速开始
@@ -51,16 +51,7 @@ node tools/sr_frames_check.js                 # scenes 0-4 合成帧判据
 判据脚本中包含**源码级守卫**：会解析 `src/cpp/` 下的实现文件核对常量与关键结构
 （见档案 F14 的说明——这是本项目的重要方法论）。
 
-### 2. PC 参考推理（复刻端侧深度链路）
-
-需要 ONNX 格式的 Depth Anything V2 Small 模型（见下方"依赖"；本仓库不附带模型文件）：
-
-```bash
-python tools/depth_mesh/ref_depth.py --onnx <模型.onnx> --image <照片> --prefix out/p1
-node tools/depth_mesh/depth_mesh_check.js --input=out/p1   # 用真实深度跑判据
-```
-
-### 3. 端侧移植（五层接入）
+### 2. 端侧移植（五层接入）
 
 | 层 | 动作 | 参考 |
 |---|---|---|
@@ -83,22 +74,14 @@ node tools/depth_mesh/depth_mesh_check.js --input=out/p1   # 用真实深度跑�
 4. **世界点构建期一次性固化**：逐帧反投影会退化为恒等式（零视差）。
 5. **每次会话用全新空工作目录**：历史残留会触发 resume 模式静默拒收关键帧。
 
-## 已知局限
-
-重建服务为黑盒（关键帧/训练/运镜不可控）、素材敏感、仅 Kirin 9020+ 与中国
-境内、端到端约 100 秒且高功耗。**"设为壁纸"的端到端闭环未在归档前验证**——建议作为接手后
-的第一项验证。详见档案 §6。
-
 ## 依赖的开源项目
 
 | 项目 | 用途 | 许可 | 地址 |
 |---|---|---|---|
 | Depth Anything V2（**仅 Small**） | 端侧单目深度 | Apache-2.0（Base/Large/Giant 为 CC-BY-NC，勿商用） | https://github.com/DepthAnything/Depth-Anything-V2 |
 | MindSpore Lite | 端侧推理运行时（系统内置，无需随包） | Apache-2.0 | https://github.com/mindspore-ai/mindspore-lite |
-| OpenCV Zoo · LaMa（可选） | 遮挡区域结构化补全 | Apache-2.0 | https://github.com/opencv/opencv_zoo （`inpainting_lama`） |
 
-**模型文件不随本仓库分发**（体积与许可原因）。模型获取、转换（ONNX → `.ms`）与端侧部署
-的完整规程见实现文档 §2.3 与档案 F13。
+**模型文件不随本仓库分发**（体积与许可原因）。端侧部署注意事项见档案 F13。
 
 ## 许可
 

@@ -732,7 +732,7 @@ console.log('=== [8] 分层深度场景：参考位姿两层投影重合 + 主�
     /SrSampleMask\(layers->mask/.test(cppLayered) && /layers->bgRgb/.test(cppLayered));
 
   const photoRect = facePhotoRect(900 / 1200, NEW_BOX);
-  const K = 0.90;                        // 默认主体深度比（「中」档；0.80 真机失败后收到 0.90，见文档 §4.6）
+  const K = 0.90;                        // 默认主体深度比（「中」档；0.80 真机失败后收到 0.90）
   const atRef = frameBasis(0, 1, ORBIT_DEG);   // n=1 → theta=0（参考位姿）
   let maxDuv = 0, samples = 0;
   for (let u = 0; u < OUT_W; u += 45) {

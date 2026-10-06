@@ -1,7 +1,7 @@
 /**
  * 3D壁纸 · 路线B（单图深度 → 深度网格多视角合成 → Spatial Recon Kit）离线判据
  *
- * 设计文档：docs/3d-wallpaper-route-b-implementation.md（本工具常量必须与该文档 §附录B 一致）
+ * 常量口径：本工具常量必须与 `src/cpp/` 的实装常量一致（判据含源码级守卫核对）。
  * 定位：免构建、零依赖（仅 node 内置 fs/zlib），在**写任何 C++ 之前**把整条几何证清楚——
  *   "先证后写"：本文件是 C++ 实装的公式来源与验收口径。
  *
@@ -15,7 +15,7 @@
  * 两种模式：
  *   ① 合成模式（默认，零素材）：程序生成"已知深度"的测试场景，验证数学与渲染管线；
  *      同时把场景 dump 成 *.rgba.bin / *.depth.f32.bin（真实模式交换格式），并回读自检。
- *   ② 真实模式：--input=<前缀> 读 PC 侧 ref_depth.py 产出的
+ *   ② 真实模式：--input=<前缀> 读外部深度产物
  *      <前缀>.rgba.bin(w*h*4) + <前缀>.depth.f32.bin(w*h*float32 相对逆深度) + <前缀>.json
  *
  * 用法：
@@ -23,8 +23,8 @@
  *   node tools/depth_mesh/depth_mesh_check.js --input=tools/depth_mesh/out/p1
  *   node tools/depth_mesh/depth_mesh_check.js --theta=6 --k=3      # 参数扫描
  *
- * ⚠️ 位移口径（本工具建立，替代历史文档的近似口径）：
- *   历史文档《坑 126》表格的位移数字 ≈ 精确投影值的 2 倍（口径错误，2026-10-01 复核发现）。
+ * ⚠️ 位移口径（本工具建立，替代早期近似口径）：
+ *   早期近似口径的位移数字 ≈ 精确投影值的 2 倍（2026-10-01 复核发现）。
  *   本工具一律用**精确针孔投影**计算同一点在两帧的落点差值，并给出：
  *     - stepNear：相邻关键帧（按 Kit 自选 5 帧估算）在**最近层**的最大像素位移（守卫对象）
  *     - slip    ：最近层与最远层的相对滑移（SfM 分出深度的证据）
@@ -45,7 +45,7 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 
-// ---------- 参数（与 docs/3d-wallpaper-route-b-implementation.md §附录B 对齐） ----------
+// ---------- 参数（与 src/cpp 实装常量对齐） ----------
 const OUT_W = 1080, OUT_H = 1440;          // Kit 硬约束（官方：仅 1080×1440）
 const FX = 750, FY = 750;                  // 虚拟相机内参（px；2026-10-02 起 = 产品默认焦距，旧 1500 口径停用）
 const CX = OUT_W / 2, CY = OUT_H / 2;
@@ -490,7 +490,7 @@ function makeSynthetic(w, h) {
   return { rgb, raw, marker: MARK };
 }
 
-// ---------- 真实数据读取（ref_depth.py 交换格式） ----------
+// ---------- 真实数据读取（深度产物交换格式） ----------
 function loadInputs(prefix) {
   const meta = JSON.parse(fs.readFileSync(prefix + '.json', 'utf8'));
   const w = meta.w, h = meta.h;
@@ -541,7 +541,7 @@ if (!INPUT) {
   const li = loadInputs(INPUT);
   W = li.w; H = li.h; rgb = li.rgb; raw = li.raw; meta = li.meta;
   console.log(`模式：真实数据 ${INPUT}  ${W}x${H}  meta=${JSON.stringify({ src: meta.src, onnx: meta.onnx_sha256 ? String(meta.onnx_sha256).slice(0, 12) : null, input: meta.input_shape })}`);
-  if (W !== OUT_W || H !== OUT_H) console.log(`  ⚠️ 输入尺寸 ${W}x${H} ≠ Kit 约束 ${OUT_W}x${OUT_H}（ref_depth.py 应输出 ${OUT_W}x${OUT_H}）`);
+  if (W !== OUT_W || H !== OUT_H) console.log(`  ⚠️ 输入尺寸 ${W}x${H} ≠ Kit 约束 ${OUT_W}x${OUT_H}（深度产物应为 ${OUT_W}x${OUT_H}）`);
 }
 console.log(`参数：fx=${FX} zNear=${Z_NEAR} k=${K_R} zFar=${ZF.toFixed(2)} d0=${D0_USE.toFixed(2)} Θ=±${(THETA * 180 / Math.PI).toFixed(1)}° Φ=±${(PHI * 180 / Math.PI).toFixed(1)}°（对角弧） N=${N_FRAMES} stride=${STRIDE} 关键帧步长=${(THETA * 180 / Math.PI * 2 / (KF_COUNT - 1)).toFixed(2)}°`);
 
@@ -803,7 +803,7 @@ if (fs.existsSync(cppPath)) {
   skip('cpp 源码守卫', 'PENDING：spatial_recon_bridge.cpp 尚未实装深度网格（阶段2 实装后本判据自动生效）');
 }
 // 单源纪律守卫（阶段2）：纯 2D 单元 spatial_recon_depth_mesh.cpp 只做"深度场→四边形/光栅化"，
-// **不得出现第二份相机/射线/内参数学**（坑 119/120 的温床；设计见文档 §4 的单源纪律）
+// **不得出现第二份相机/射线/内参数学**（相机数学单源纪律）
 {
   const dmPath = path.join(__dirname, '..', '..', 'src', 'cpp', 'spatial_recon_depth_mesh.cpp');
   if (fs.existsSync(dmPath)) {
@@ -844,7 +844,7 @@ for (const thDeg of [3, 4, 5, 6, 8]) {
 
 // ---------- 合成模式：dump + 回读自检 ----------
 if (marker) {
-  console.log('\n=== [附加] dump 交换格式（ref_depth.py 同款）并回读自检 ===');
+  console.log('\n=== [附加] dump 交换格式（真实模式同款）并回读自检 ===');
   fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   const p = path.join(__dirname, 'out', 'synth');
   fs.writeFileSync(p + '.depth.f32.bin', Buffer.from(raw.buffer, raw.byteOffset, raw.length * 4));

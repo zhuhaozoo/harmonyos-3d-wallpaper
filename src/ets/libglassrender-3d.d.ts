@@ -24,7 +24,7 @@ export interface SpatialReconTestOptions {
   /** 虚拟相机轨道半角 ±Θ（度，钳 1~45）。scene=5 默认 5；诊断可覆盖 */
   orbitDeg?: number;
   /** 虚拟相机焦距 px（默认 750，钳 200~6000；主点=画面中心，零畸变）。
-   *  750 为典型广角主摄先验值（比例失真的根因是轨道退化而非焦距，见 docs/archive.md F6） */
+   *  750 为典型广角主摄先验值（比例失真的根因是轨道退化而非焦距，见 docs/3d-wallpaper-archive.md F6） */
   focalPx?: number;
   /** 位姿约定：false=相机→世界；**true=世界→相机（默认，已验证命中）** */
   invertQuat?: boolean;

@@ -64,7 +64,7 @@ struct SpatialReconTestParams {
                                 *   4=盒中空间（放大主盒：正面铺满画幅、照片面积×3，需 mask）；5=**深度网格（路线B）**：
                                 *   由端侧深度估计（DA-V2 Small）逐像素展开成三层（照片网格 + 背景层补洞 + 远景板兜底），
                                  *   逐帧用 bridge 单源投影光栅化；轨道口径由判据界定（±kDepthThetaDeg，stepNear≈66px）；
-                                *   深度缺失/构建失败自动退回 1；设计见 docs/3d-wallpaper-route-b-implementation.md。 */
+                                *   深度缺失/构建失败自动退回 1。 */
     bool rgbaInput = false;    /**< A/B：按 4 字节/像素（RGBA，Alpha=255）上报，默认 RGB 3 字节 */
     bool bgrSwap = true;       /**< **默认开**（坑 132）：推帧前交换 R/B。该开关会改变成片的颜色
                                 *   表现，但成因**尚无定论**（坑 134 的"A/B 定案"已撤销，见档案 F7）；

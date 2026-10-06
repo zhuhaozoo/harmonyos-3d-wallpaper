@@ -1,6 +1,6 @@
 /**
  * 3D壁纸 · 路线B 阶段1：端侧深度推理实现（MindSpore Lite Native API）
- * 见 include/mslite_depth_runner.h 的契约说明与 docs/3d-wallpaper-route-b-implementation.md §2。
+ * 见 include/mslite_depth_runner.h 的契约说明。
  */
 #include "mslite_depth_runner.h"
 
@@ -31,9 +31,9 @@
 namespace glassdepth {
 namespace {
 
-constexpr int32_t kDefaultInW = 546;   // 14 的倍数、恰 3:4（与 PC 端一致；模型输入以张量实测为准）
+constexpr int32_t kDefaultInW = 546;   // 14 的倍数、恰 3:4（与离线判据一致；模型输入以张量实测为准）
 constexpr int32_t kDefaultInH = 728;
-const float kMean[3] = {0.485f, 0.456f, 0.406f};   // 与 ref_depth.py 同源，勿改
+const float kMean[3] = {0.485f, 0.456f, 0.406f};   // 与离线判据同源，勿改
 const float kStd[3] = {0.229f, 0.224f, 0.225f};
 
 /** 缓存的模型（自检/后续管线复用；模型不变则只加载一次） */
