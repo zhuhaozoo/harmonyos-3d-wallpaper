@@ -126,8 +126,8 @@
 | 8 | `PauseSession(session)` | 暂停 | 任意时刻可用 |
 | 9 | `ResumeSession(session)` | 继续 | 会话未被暂停时返回错误 |
 | 10 | `GetProgress(session, &progress, &stage)` | 查进度(0~1)+阶段 | 调 `SaveResultToFile` 后 progress 只反映保存进度 |
-| 11 | `GetRefinedFrame(session, iFrame, &outFrame)` | 取**重建优化后**该帧的内外参 | **不返回图像像素**（imageData=null）；本方案**尚未使用**——可作"Kit 视角看上报位姿"的对账工具 |
-| 12 | `SaveResultToFile(session, writeInfo, cb)` | 手动保存 | 重建未成功时返回 `STAGE_NOT_FINISHED` |
+| 11 | `GetRefinedFrame(session, iFrame, &outFrame)` | 取**重建优化后**该帧的内外参 | **不返回图像像素**（imageData=null）；本条用于**内参对账**：保存后读 i=0/mid/last 的优化后 fx/fy/cx/cy 与 pos/quat（`SRCHK refined`），refined fy/fx 即模型纵横比|
+| 12 | `SaveResultToFile(session, writeInfo, cb)` | 手动保存 | 重建未成功时返回 `STAGE_NOT_FINISHED`；**writeInfo 传空时可在重建结束后手动保存**（官方明文）——本项目用它做"同会话双产物"：MP4 自动保存后追加一份 PLY 侧车（模型侧唯一可解剖产物） |
 | 13 | `RegisterNGCallbackFunc(session, cb, data)` | 带 void* 数据的回调 | **26.0.0+**；StartSession 前注册=重建完成回调、之后注册=保存完成回调；旧式回调会被覆盖 |
 
 **会话级硬约束**【官方《管理 Spatial Recon 会话》+《重建三维场景》】：
@@ -145,7 +145,18 @@
 ### 4.1 spatialRender（6.0.1(21)+）
 - `GSNode`：单个 3DGS 渲染对象（继承 Node，可设 position/scale/visible）。
 - `GSPlugin.PLUGIN_ID`：**必须先 `renderContext.loadPlugin` 再调用加载接口**，否则未定义行为。
+  签名核实（SDK d.ts）：`RenderContext.loadPlugin(name: string): Promise<boolean>`——官方示例没 await
+  （`loadPlugin(...)` 后直接 `Scene.load()`），但"先加载"是硬要求；工程实现一律 `await` 并判 `false = 本机不支持`。
 - `GSPlugin.loadGSNode(scene, {uri, offset}, parent?)`：加载 GS 模型（uri 支持 `OhosRawFile://` 与 `file://`，**空字符串=加载失败**；offset 默认 0）。
+  - **支持的模型格式：MP4 / PLY / GLB**（官方《加载3DGS模型》导语；本功能产物 MP4 可直接加载）；`parent` 不传 = 挂到 `Scene.root`。
+  - **⚠️ MP4 必须传 `offset`（容器载荷的字节偏移）**：`GSImportSettings.offset` 语义是"**待加载数据在文件中的字节偏移量**"（d.ts：`Optional byte offset for data in the file`；中文 API 参考里"用于模型的位移调整"的注释**是误导**）。MP4 是容器（视频轨 + 封面 + 内嵌 `gaussian.glb`），不传 offset（=0）时渲染端**把文件头当模型解析**，引擎日志实锤：
+    `GS3D ply header not end → Invalid GS3D PLY header! → Invalid GS model, aborting!` → 画面只有背景色。
+    偏移获取：① `AVMetadataExtractor.fetchMetadata()` → `AVMetadata.customInfo`（来自 `moov.meta.list`）取键名含 `gltf` 者；② 兜底扫 GLB 魔数（`glTF` + version=2 + 长度自洽）。
+- **打包侧/渲染侧引擎日志 tag（排查 3DGS 加载问题必看，JS 侧往往零异常）**：
+  `SpatialGltfModelPacker`（写入：`hasGltf/gltfDataSize/…gaussian.glb`）、`GaussianGlbFormatter`（模型元信息：`gsCount / shDegree / LoadViewParams`，其中 **`distanceRange` 即推荐观察距离**）、`GaussianModelCompressor`（压缩率）、`GlbUwa3dgsDemuxer`（读取端解复用器）、`gaussianRenderSession`（`[VideoGenerator][RenderAGP] …`）、`ohos_lume`（GS 解析/渲染引擎本体，报错都在这）。
+- **相机**：`scene.getResourceFactory().createCamera({ name, path? })`；`Camera extends Node`（**`Node.rotation` 是四元数 `{x,y,z,w}`**）。官方明确"调整相机 z 轴位置可控制观察距离"——唯一被文档化的观察参数；"新相机默认朝哪看"**未规定**，故 App 内预览把相机固定 +Z 朝 −Z、改以旋转模型实现观察。
+- **3DGS 模型的尺度/位置由重建规约决定（官方未规定）** → App 内预览**不要用固定相机距离**：用官方包围盒接口自动取景——`spatialEdit.GSEdit.editGSNode(node)`（26.0.0+）→ `getRecommended3DBox(ori, dir): Aabb`（**沿射线取相交物体的世界 AABB**，字段 `aabbMin`/`aabbMax`）→ 由半径/中心定相机距离。
+- **无"显式销毁场景"接口**（d.ts 无 dispose/destroy）：页面退出丢引用即可。
 - `loadTiledGSNode(scene, {uri}, parent?)`（26.0.0+）：分块加载，清单为 JSON（`scene.json`）；配套 `setCamera` / `setTileRequestCallback` / `notifyTileReady`（瓦片按需加载）。
 - **预置滤镜效果 ID**（作为 `createEffect` 的 effectId）：`RETRO_EFFECT_ID`（复古：colorNum/pixelSize/blendEnabled/curve 参数）、`COMIC_EFFECT_ID`（漫画）、`OBRA_DINN_EFFECT_ID`（黑白 bit）、`COLOR_EDITING_EFFECT_ID`（颜色编辑）。
 
@@ -155,6 +166,9 @@
 - `getRecommended3DBox(ori, dir)`：沿射线取客体 AABB。
 - `saveToPLY(uri)`：另存 PLY。
 - `extract3DMainBody(pressPoint)`：**按屏幕点提取 3D 主体**（结果覆盖内存中 GSNode）——与"主体分割"产品方向相关。
+- **编辑能力边界（逐项核过官方 API 参考 + SDK 头文件）**：编辑只改**内存**里的模型，唯一文件导出是 PLY（只出不进）；
+  `paint` 是"给整个选区上一个颜色"（逐通道乘/加/替换），**没有逐通道搬数（如 R↔B 置换）的能力**；
+  C API 侧输出格式枚举只有 `PLY` 与 `MP4`，**没有"模型文件/内存模型 → 3DGS 容器"的打包接口**。
 
 ---
 
@@ -167,9 +181,11 @@
 | 输出 MP4 的分辨率/帧率/码率/编码 | 文档未规定 | 【实测】1080×1920、30fps、6Mbps、HEVC；**封面附图为 720×960 3:4** |
 | 关键帧选取策略与数量 | 文档未规定 | 【实测】selected 5~6 个（72 帧输入） |
 | 最大重建帧数 | 仅知存在（错误码 1023700001），**数值未给** | 未探到上限 |
-| 输出重建的渲染相机内参（focal/画幅适配） | 文档未规定 | 【实测】对输入 fx 有 **≈750** 的固定预期（`cameraInitParams` 日志被隐私过滤，数值不可读） |
+| 输出重建的渲染相机内参（focal/画幅适配） | 文档未规定 | 【实测】对输入 fx 有 **≈750** 的固定预期（`cameraInitParams` 日志被隐私过滤，数值不可读）；**refined 内参是内容相关漂移**（`GetRefinedFrame` 读数：同一构建、不同素材间 fy/fx 可差 0.3~3.5 量级，`SRCHK refined`） |
 | 重建内部算法参数（迭代数、阈值等） | **完全无暴露** | — |
-| "3D 影像"（可设壁纸）的容器规范 | 文档未规定 | 【实测】保存的 MP4 即可被图库按 3D 影像处理 |
+| 导出模型/相机的朝向约定 | 文档未规定 | 【实测】**随内容变**：同一构建下不同素材的导出朝向不一致（`worldFlip180` 是否为正确补偿不能写死；预置路线改由数据集 manifest 声明） |
+| 成片运镜（CameraPath）的生成与初始机位 | 文档未规定 | 【实测】内容相关的黑盒产物：出现过"初始相机落在点云壳内部、从球壳内侧看"的轮次（同一模型用其导出相机离线渲染却是干净圆球） |
+| "3D 影像"（可设壁纸）的容器规范 | 文档未规定 | 【实测】保存的 MP4 即可被图库按 3D 影像处理；容器 = 视频轨 + 封面 + `meta` 内嵌 GLB 载荷 |
 
 ---
 
@@ -178,12 +194,12 @@
 | 项 | 本方案传入 | 备注 |
 |---|---|---|
 | 帧尺寸 | 1080×1440 RGB 紧凑（行跨距 = 1080×3，native 断言） | Kit 硬约束 |
-| 内参 | fx=fy=**750**、cx=540、cy=720、畸变 0 | 750 = 宽度压缩修复值；改动会同时影响模型形状与视差量级 |
+| 内参 | fx=fy=**750**、cx=540、cy=720、畸变 0 | 750 = 典型广角主摄先验（"宽度压缩修复值"旧结论已证伪，见档案 F6）；改动会同时影响模型形状与视差量级 |
 | 位姿 | 世界→相机四元数 [x,y,z,w]；`worldFlip180` 默认开（补偿 Kit 模型 180° 翻转） | 均为【实测】命中配置 |
 | 帧序/时间戳 | 72 帧、30fps 等间隔 ns、θ 从 −5° 到 +5°（含 θ=0） | 与产品档位常量一致（Θ=±5°、k=3、zNear=1） |
 | 保存 | `writeInfo.modelFormat=MP4`、`modelFile` 沙箱路径 | writeInfo 非空 ⇒ 自动保存 |
 | 会话 | 每次生成全新空目录（el2/base 下 `/sr_<ts>/`） | 防 resume 模式 |
-| 未用的可用工具 | `GetRefinedFrame`（对账位姿）、`SaveResultToFile`（手动保存）、PLY 输出、spatialEdit 提取主体 | 见 §3/§4 |
+| 已用工具 | `GetRefinedFrame`（refined 内参对账探针）、`SaveResultToFile`（同会话追加 PLY 侧车）、PLY 输出 | 见 §3/§4 |
 
 ---
 

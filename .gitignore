@@ -11,6 +11,7 @@ node_modules/
 *.bin
 out/
 tools/**/out/
+tools/ui_shots/
 
 # 便携 Python 环境（如使用）
 .pyenv/

@@ -56,6 +56,37 @@ struct SrDepthMesh {
     float nearRatio = 0.0f;           // 诊断：近区（s > nearSplitS）像素占比
 };
 
+/** 深度场质量选项（质量优化第二档 D1/D2/D4，2026-10-04）。
+ *  ⚠️ 坑 147 纪律：这些开关改变喂给 Kit 的帧字节——**产品默认档已于 2026-10-04 上调为质量增强档**
+ *  （bridge 参数 depthEdge/adaptiveK/subjectAlign 默认 1；坑 154 记录过真机观感风险，
+ *  变更须随真机同图 A/B 复核）。**本结构自身的缺省仍是 0/旧行为**——只在调用方不传 opts 时生效
+ *  （bridge 恒传 opts，缺省路径仅供旧签名/诊断用）。
+ *  口径与离线判据 tools/depth_mesh/depth_edge_check.js 严格同源（改一处必须同步两处）。
+ *  真实数据验证（金标 = 画布分辨率参考深度）：JBU 边缘对齐分 0.206→0.445、
+ *  渗色带宽 5.97→4.89px、MAE 0.0034→0.0029；D4 在理想化参考数据上收益弱，端侧 A/B 定档。 */
+struct SrDepthMeshOpts {
+    int edgeMode = 0;           /**< 0=旧行为（低分辨场双线性采样建网格）；1=D1 JBU 边缘对齐
+                                 *   （RGB 引导上采样到画布分辨率再建网格，网格角点密度不变）；
+                                 *   2=D4+D1（先保边预平滑再 JBU，消细碎台阶） */
+    int preSmoothR = 2;         /**< D4：保边预平滑半径（深度场像素） */
+    float preSmoothSigmaR = 0.10f;  /**< D4：值域 σ（s∈[0,1]；Δ≥0.3 的台阶跨边权重 ~e^-11 不糊） */
+    int jbuRadius = 2;          /**< D1：JBU 窗口半径（低分辨率采样点数） */
+    float jbuSigmaS = 1.6f;     /**< D1：空间域 σ（低分辨率像素） */
+    float jbuSigmaR = 0.10f;    /**< D1：值域 σ（RMS 通道差 0~1） */
+    const uint8_t *subjectMask = nullptr;  /**< D2：主体蒙版（**rw×rh 源分辨率**，0=背景/255=主体，
+                                 *   内部重采样到深度场分辨率；null=不启用） */
+    float subjectSigmaR = 0.08f;    /**< D2：值域 σ */
+};
+
+/**
+ * D3 自适应纵深 k（纯 2D 分析；质量实验，bridge 在算 zFar 之前调用）。
+ * 分离度 = s 场 64 桶直方图 Otsu 两分的类均值距 × 类平衡权重（两类各须 ≥5% 面积）；
+ * k = kMin + (kMax−kMin)·clamp((sep−0.10)/(0.30−0.10), 0, 1)。
+ * ⚠️ **d0 恒 2 公式**：调用方应取 zNear=4/(1+k)、zFar=4k/(1+k)——(zNear+zFar)/2 ≡ 2，
+ * 轨道枢轴/相机数学/位移守卫零改动，只改深度起伏比。与 depth_edge_check.js OPTS 同源。
+ */
+float SrAdaptiveDepthK(const float *rawDepth, int dw, int dh, float kMin, float kMax);
+
 /**
  * 由「原始相对逆深度（越大越近）+ 源帧 RGBA」构建三层场景所需的几何与贴图（纯 2D）。
  * @param rawDepth dw*dh float（模型原始输出；内部做 p1/p99 稳健归一化；s=1 最近）
@@ -70,7 +101,8 @@ struct SrDepthMesh {
 int32_t SrBuildDepthMesh(const float *rawDepth, int dw, int dh,
                          const uint8_t *rgba, int rw, int rh,
                          float zNear, float zFar, int stride, int skirt,
-                         int outW, int outH, SrDepthMesh &out);
+                         int outW, int outH, SrDepthMesh &out,
+                         const SrDepthMeshOpts &opts = SrDepthMeshOpts());
 
 /**
  * 相机无关的光栅化顶点：屏幕坐标 + 深度倒数 + 贴图坐标（由 bridge 用其单源投影算好后传入）。
